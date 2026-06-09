@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Media Asset Browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #181818;
+    --border: #222222;
+    --border-bright: #333333;
+    --text: #f0f0f0;
+    --text-dim: #999;
+    --text-muted: #555;
+    --accent: #06b6d4;
+    --accent-dim: rgba(6,182,212,0.10);
+    --accent-glow: rgba(6,182,212,0.18);
+    --tmdb: #01b4e4;
+    --fanart: #f5a623;
+    --radius: 8px;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .logo span { color: var(--accent); font-weight: 400; }
+
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    background: transparent;
+    border: 1px solid var(--border-bright);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .btn:hover { border-color: var(--text-dim); color: var(--text); }
+  .btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+  .btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius);
+    transition: color 0.15s;
+  }
+  .btn-icon:hover { color: var(--text); }
+
+  /* ── MAIN LAYOUT ── */
+  main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+
+  /* ── SEARCH AREA ── */
+  .search-section { margin-bottom: 32px; }
+
+  .search-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    margin-bottom: 12px;
+  }
+
+  .search-input-wrap { flex: 1; position: relative; }
+  .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 15px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .search-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    padding: 12px 16px 12px 40px;
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .search-input::placeholder { color: #444; }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim); }
+
+  .type-toggle { display: flex; gap: 0; }
+  .type-toggle .btn {
+    border-radius: 0;
+    border-right-width: 0;
+  }
+  .type-toggle .btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+  .type-toggle .btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-right-width: 1px; }
+
+  /* ── SEARCH RESULTS ── */
+  .search-results {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .search-results.visible { display: block; }
+
+  .result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  .result-item:last-child { border-bottom: none; }
+  .result-item:hover { background: var(--surface2); }
+
+  .result-thumb {
+    width: 32px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 2px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .result-thumb-placeholder {
+    width: 32px;
+    height: 48px;
+    background: var(--surface2);
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 16px;
+  }
+
+  .result-info { flex: 1; }
+  .result-title { color: var(--text); font-size: 13px; font-weight: 500; }
+  .result-meta { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+
+  .result-id {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-family: var(--font-mono);
+  }
+
+  /* ── SELECTED TITLE BAR ── */
+  .title-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+  }
+  .title-bar.visible { display: flex; }
+
+  .title-bar-left { display: flex; align-items: center; gap: 12px; }
+  .title-bar-poster {
+    width: 36px;
+    height: 54px;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+  .title-bar-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--text);
+  }
+  .title-bar-meta { color: var(--text-dim); font-size: 11px; margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .meta-pill {
+    display: inline-block;
+    padding: 1px 7px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .title-bar-right { display: flex; gap: 8px; }
+
+  /* ── FILTER ROW ── */
+  .filter-row {
+    display: none;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .filter-row.visible { display: flex; }
+
+  .filter-group { display: flex; align-items: center; gap: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .filter-group + .filter-group { margin-left: 8px; }
+  .filter-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 8px; border-right: 1px solid var(--border); white-space: nowrap; }
+
+  select {
+    background: var(--surface);
+    border: none;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 5px 8px;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { outline: none; }
+
+  .filter-spacer { flex: 1; }
+
+  .asset-count-row { display: flex; gap: 8px; align-items: center; }
+  .count-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .count-badge.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  /* ── TAB NAV ── */
+  .tab-nav {
+    display: none;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    margin-top: 8px;
+  }
+  .tab-nav.visible { display: flex; }
+
+  .tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: -1px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-count {
+    font-size: 9px;
+    padding: 1px 5px;
+    background: var(--surface2);
+    border-radius: 10px;
+    color: var(--text-muted);
+  }
+  .tab-btn:hover .tab-count { color: var(--text-dim); }
+  .tab-btn.active .tab-count { background: var(--accent-dim); color: var(--accent); }
+
+  /* ── GRID ── */
+  .asset-grid {
+    display: grid;
+    gap: 16px;
+  }
+  .asset-grid.posters { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .asset-grid.backdrops { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .asset-grid.logos { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+  .asset-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    group: true;
+  }
+  .asset-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 0 0 1px var(--accent-glow), 0 12px 28px rgba(0,0,0,0.6); }
+
+  .asset-img-wrap {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface2);
+  }
+
+  .asset-img-wrap.poster-ratio { aspect-ratio: 2/3; }
+  .asset-img-wrap.backdrop-ratio { aspect-ratio: 16/9; }
+  .asset-img-wrap.logo-ratio {
+    aspect-ratio: 16/7;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .asset-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.2s;
+  }
+  .logo-ratio .asset-img {
+    object-fit: contain;
+    width: 100%;
+    height: 100%;
+  }
+
+  .asset-img.loading { opacity: 0; }
+  .asset-img.loaded { opacity: 1; }
+
+  .img-skeleton {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* card overlay on hover */
+  .asset-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .asset-card:hover .asset-overlay { opacity: 1; }
+
+  .overlay-btn {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 7px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    backdrop-filter: blur(4px);
+  }
+  .overlay-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
+  .overlay-btn.dl { background: var(--accent); color: #000; border-color: var(--accent); }
+  .overlay-btn.dl:hover { filter: brightness(1.15); }
+
+  /* card footer */
+  .asset-footer {
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+  }
+
+  /* source tag — pinned to top-left of image */
+  .source-tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    z-index: 2;
+    backdrop-filter: blur(4px);
+  }
+  .source-tag.tmdb { background: rgba(1,180,228,0.25); color: #7dd3fc; }
+  .source-tag.fanart { background: rgba(245,166,35,0.25); color: #fbbf24; }
+
+  .asset-res { color: var(--text-dim); font-size: 9px; }
+  .asset-votes { color: var(--text-dim); font-size: 9px; }
+
+  /* ── STATES ── */
+  .state-panel {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 32px;
+    text-align: center;
+    color: var(--text-dim);
+  }
+  .state-panel.visible { display: flex; }
+  .state-icon { font-size: 40px; margin-bottom: 16px; opacity: 0.6; }
+  .state-title { font-family: var(--font-display); font-size: 16px; margin-bottom: 6px; color: var(--text-dim); font-weight: 600; }
+  .state-sub { font-size: 11px; color: var(--text-muted); }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── SETTINGS MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.visible { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 12px;
+    width: min(480px, calc(100vw - 32px));
+    padding: 28px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .field-group { margin-bottom: 16px; }
+  .field-label {
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    display: block;
+    font-weight: 500;
+  }
+  .field-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field-input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim); }
+
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border: 1px solid var(--accent);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover { filter: brightness(1.15); }
+
+  .api-status {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .api-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .api-dot.ok { background: #4caf50; }
+  .api-dot.missing { background: #f44336; }
+  .api-status-text { font-size: 10px; color: var(--text-muted); }
+
+  /* ── LIGHTBOX ── */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+  .lightbox.visible { display: flex; }
+
+  .lightbox-img {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: var(--radius);
+  }
+
+  .lightbox-bar {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .lightbox-info { color: var(--text-dim); font-size: 11px; }
+
+  .lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .lightbox-close:hover { color: var(--text); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--surface2);
+    border: 1px solid var(--border-bright);
+    border-left: 3px solid var(--accent);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    z-index: 400;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── EMPTY TAB ── */
+  .empty-tab {
+    display: none;
+    padding: 60px 0;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  .empty-tab.visible { display: block; }
+
+  /* ── ACCENT SWATCHES ── */
+  .accent-section { margin-bottom: 20px; }
+  .swatch-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .swatch {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.15s, border-color 0.15s;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.selected {
+    border-color: #fff;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+    transform: scale(1.1);
+  }
+  .swatch-name {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+  .swatch-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+
+  /* ── RESPONSIVE ── */
+
+  /* Tablet: 641–900px */
+  @media (max-width: 900px) {
+    main { padding: 20px; }
+    .asset-grid.posters   { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    .asset-grid.backdrops { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .asset-grid.logos     { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  }
+
+  /* Mobile: ≤640px */
+  @media (max-width: 640px) {
+
+    /* Header */
+    header { padding: 10px 16px; }
+    .logo { font-size: 13px; }
+    /* Hide API status dots on mobile — too cramped */
+    #apiStatus { display: none !important; }
+
+    /* Main padding */
+    main { padding: 12px; }
+
+    /* Search row: stack input on top, toggles + search btn below */
+    .search-row {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .search-input-wrap { flex: 1 1 100%; }  /* full width row */
+    .type-toggle { flex: 1; }
+    .type-toggle .btn { flex: 1; padding: 8px 6px; font-size: 10px; }
+    /* Search button sits beside type toggle */
+    .search-row > .btn { padding: 8px 14px; font-size: 10px; }
+
+    /* Search results */
+    .result-id { display: none; } /* hide TMDB id badge — no space */
+
+    /* Title bar: stack name + meta, shrink poster */
+    .title-bar { padding: 10px 12px; gap: 8px; flex-wrap: wrap; }
+    .title-bar-left { gap: 8px; min-width: 0; flex: 1; }
+    .title-bar-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+    .title-bar-meta { font-size: 10px; }
+
+    /* Filter row: wrap, tighten gaps */
+    .filter-row { gap: 8px; margin-bottom: 14px; }
+    .filter-group { gap: 0; }
+    .filter-label { display: none; } /* labels take too much space, dropdowns are self-explanatory */
+    select { font-size: 11px; padding: 6px 6px; }
+    .filter-spacer { display: none; }
+    .asset-count-row { display: none; } /* counts already in tab labels */
+
+    /* Tab nav: scrollable, no wrapping */
+    .tab-nav {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      margin-bottom: 16px;
+    }
+    .tab-nav::-webkit-scrollbar { display: none; }
+    .tab-btn { padding: 10px 12px; font-size: 10px; white-space: nowrap; flex-shrink: 0; }
+
+    /* Grids: 2-col posters (3-col is too narrow), 2-col backdrops, 1-col logos */
+    .asset-grid.posters   { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .asset-grid.backdrops { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .asset-grid.logos     { grid-template-columns: 1fr; gap: 8px; }
+
+    /* Footer: hide votes on mobile (not enough space), compress text */
+    .asset-votes { display: none; }
+    .asset-res   { font-size: 8px; }
+    .asset-footer { padding: 5px 8px; }
+    .source-tag { font-size: 8px; padding: 2px 5px; top: 6px; left: 6px; }
+
+    /* Cards: hide hover overlay on mobile — tap card to preview */
+    .asset-overlay { display: none; }
+
+    /* Modal: full-width, scrollable on small screens */
+    .modal {
+      width: calc(100vw - 24px);
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 20px 16px;
+    }
+
+    /* Lightbox: full screen image */
+    .lightbox-img {
+      max-width: 100vw;
+      max-height: 75vh;
+    }
+    .lightbox-bar { flex-direction: column; gap: 8px; text-align: center; }
+    .lightbox-close { top: 12px; right: 14px; font-size: 20px; }
+
+    /* Toast: wider on mobile */
+    .toast { width: calc(100vw - 48px); text-align: center; }
+  }
+
+  /* Very small: ≤380px */
+  @media (max-width: 380px) {
+    .asset-grid.posters   { grid-template-columns: repeat(2, 1fr); }
+    .asset-grid.backdrops { grid-template-columns: 1fr; }
+    .title-bar-name { max-width: 140px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Asset<span>Browser</span></div>
+  <div class="header-actions">
+    <div id="apiStatus" style="display:flex;gap:6px;align-items:center;margin-right:8px;"></div>
+    <button class="btn-icon" onclick="openSettings()" title="Settings" style="font-size:18px;padding:4px 8px;">⚙</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- SEARCH -->
+  <div class="search-section">
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <span class="search-icon">⌕</span>
+        <input
+          class="search-input"
+          id="searchInput"
+          type="text"
+          placeholder="Search movie, TV show or collection..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+      <div class="type-toggle">
+        <button class="btn active" id="typeMovie" onclick="setType('movie')">Movie</button>
+        <button class="btn" id="typeTV" onclick="setType('tv')">TV</button>
+        <button class="btn" id="typeCollection" onclick="setType('collection')">Collection</button>
+      </div>
+      <button class="btn active" onclick="doSearch()" style="padding:8px 16px;">Search</button>
+    </div>
+
+    <div class="search-results" id="searchResults"></div>
+  </div>
+
+  <!-- TITLE BAR -->
+  <div class="title-bar" id="titleBar">
+    <div class="title-bar-left">
+      <img class="title-bar-poster" id="titleBarPoster" src="" alt="">
+      <div>
+        <div class="title-bar-name" id="titleBarName"></div>
+        <div class="title-bar-meta" id="titleBarMeta"></div>
+      </div>
+    </div>
+    <div class="title-bar-right">
+      <button class="btn" onclick="clearSelection()">✕ Clear</button>
+    </div>
+  </div>
+
+  <!-- FILTER ROW -->
+  <div class="filter-row" id="filterRow">
+    <div class="filter-group">
+      <span class="filter-label">Source</span>
+      <select id="filterSource" onchange="applyFilters()">
+        <option value="all">Both</option>
+        <option value="tmdb">TMDB only</option>
+        <option value="fanart">Fanart.tv only</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Language</span>
+      <select id="filterLang" onchange="applyFilters()">
+        <option value="all">All</option>
+        <option value="en">English</option>
+        <option value="null">Textless</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Sort</span>
+      <select id="filterSort" onchange="applyFilters()">
+        <option value="votes">By votes</option>
+        <option value="res">By resolution</option>
+      </select>
+    </div>
+    <div class="filter-spacer"></div>
+    <div class="asset-count-row" id="assetCounts"></div>
+  </div>
+
+  <!-- TAB NAV -->
+  <div class="tab-nav" id="tabNav">
+    <button class="tab-btn active" id="tabPosters" onclick="switchTab('posters')">
+      Posters <span class="tab-count" id="countPosters">0</span>
+    </button>
+    <button class="tab-btn" id="tabBackdrops" onclick="switchTab('backdrops')">
+      Backdrops <span class="tab-count" id="countBackdrops">0</span>
+    </button>
+    <button class="tab-btn" id="tabLogos" onclick="switchTab('logos')">
+      Logos <span class="tab-count" id="countLogos">0</span>
+    </button>
+
+  </div>
+
+  <!-- CONTENT AREA -->
+  <div id="contentArea">
+    <!-- idle state -->
+    <div class="state-panel visible" id="stateIdle">
+      <div class="state-icon">⬚</div>
+      <div class="state-title">Search for a title</div>
+      <div class="state-sub">Enter a movie or TV show name, then press Search</div>
+    </div>
+
+    <!-- loading state -->
+    <div class="state-panel" id="stateLoading">
+      <div class="spinner"></div>
+      <div class="state-title">Fetching assets...</div>
+      <div class="state-sub" id="stateLoadingSub">Querying TMDB and Fanart.tv</div>
+    </div>
+
+    <!-- no results -->
+    <div class="state-panel" id="stateEmpty">
+      <div class="state-icon">◌</div>
+      <div class="state-title">No results</div>
+      <div class="state-sub">Try a different search or check your API keys</div>
+    </div>
+
+    <!-- grids -->
+    <div id="gridArea" style="display:none;">
+      <div class="asset-grid posters" id="gridPosters"></div>
+      <div class="asset-grid backdrops" id="gridBackdrops" style="display:none;"></div>
+      <div class="asset-grid logos" id="gridLogos" style="display:none;"></div>
+
+      <div class="empty-tab" id="emptyTab">No assets available for this tab with current filters.</div>
+    </div>
+  </div>
+
+</main>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-title">
+      Settings
+      <button class="btn-icon" onclick="closeSettings()">✕</button>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">TMDB API Key (v3 auth)</label>
+      <input class="field-input" id="tmdbKey" type="password" placeholder="Enter your TMDB API key..." />
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">Fanart.tv Project API Key <span style="color:#555;font-size:9px;text-transform:none;letter-spacing:0;">(required — from fanart.tv/get-an-api-key)</span></label>
+      <input class="field-input" id="fanartKey" type="password" placeholder="Project key → goes as api_key..." />
+    </div>
+    <div class="field-group">
+      <label class="field-label">Fanart.tv Personal Key <span style="color:#555;font-size:9px;text-transform:none;letter-spacing:0;">(optional — your account's personal key)</span></label>
+      <input class="field-input" id="fanartClientKey" type="password" placeholder="Personal key → goes as client_key (optional)..." />
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">Cloudflare Worker URL <span style="color:#555;font-size:9px;text-transform:none;letter-spacing:0;">(required for Fanart images — your *.workers.dev URL)</span></label>
+      <input class="field-input" id="workerUrl" type="text" placeholder="https://your-worker.YOUR-NAME.workers.dev" />
+    </div>
+
+    <div class="accent-section">
+      <div class="field-label" style="margin-bottom:12px; font-weight:500;">Accent Colour</div>
+      <div class="swatch-row">
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#fb923c" title="Amber" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Amber</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#f59e0b" title="Gold" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Gold</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#f43f5e" title="Rose" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Rose</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#e63d64" title="Magenta" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Magenta</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#60a5fa" title="Sky Blue" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Sky</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#38bdf8" title="Ice Blue" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Ice Blue</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#818cf8" title="Indigo" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Indigo</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#5550f7" title="Violet" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Violet</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#06b6d4" title="Cyan (Default)" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Cyan</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#19be81" title="Emerald" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Emerald</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#e2e8f0" title="Pure White" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">White</div>
+        </div>
+        <div class="swatch-wrap">
+          <div class="swatch" data-accent="#94a3b8" title="Slate" onclick="selectAccent(this)"></div>
+          <div class="swatch-name">Slate</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSettings()">Cancel</button>
+      <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img class="lightbox-img" id="lightboxImg" src="" alt="">
+  <div class="lightbox-bar" onclick="event.stopPropagation()">
+    <span class="lightbox-info" id="lightboxInfo"></span>
+    <button class="btn-primary" id="lightboxDl" onclick="downloadFromLightbox()">Download</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let state = {
+  type: 'movie',
+  selected: null,       // { id, title, year, posterPath, type }
+  rawAssets: {          // unfiltered
+    posters: [],
+    backdrops: [],
+    logos: []
+  },
+  filtered: {
+    posters: [],
+    backdrops: [],
+    logos: []
+  },
+  activeTab: 'posters',
+  lightboxAsset: null
+};
+
+// ══════════════════════════════════════════════
+//  KEYS
+// ══════════════════════════════════════════════
+function getKeys() {
+  return {
+    tmdb: localStorage.getItem('mab_tmdb') || '',
+    fanart: localStorage.getItem('mab_fanart') || '',
+    fanartClient: localStorage.getItem('mab_fanart_client') || '',
+    workerUrl: (localStorage.getItem('mab_worker_url') || '').replace(/\/$/, '') // strip trailing slash
+  };
+}
+
+function updateApiStatusHeader() {
+  const { tmdb, fanart, fanartClient } = getKeys();
+  const el = document.getElementById('apiStatus');
+  const dot = (ok, label) =>
+    `<div style="display:flex;align-items:center;gap:4px;">
+      <div style="width:6px;height:6px;border-radius:50%;background:${ok ? '#4caf50' : '#555'};flex-shrink:0;"></div>
+      <span style="font-size:10px;color:#555;font-family:var(--font-mono);">${label}</span>
+     </div>`;
+  el.innerHTML = dot(!!tmdb, 'TMDB') + dot(!!fanart, 'Fanart') + (fanartClient ? dot(true, '+Personal') : '');
+}
+
+function openSettings() {
+  const { tmdb, fanart, fanartClient } = getKeys();
+  document.getElementById('tmdbKey').value = tmdb;
+  document.getElementById('fanartKey').value = fanart;
+  document.getElementById('workerUrl').value = localStorage.getItem('mab_worker_url') || '';
+  document.getElementById('fanartClientKey').value = fanartClient;
+  document.getElementById('settingsModal').classList.add('visible');
+  // Re-init swatches so colours + selection state are correct
+  setTimeout(initSwatches, 0);
+}
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('visible');
+}
+function saveSettings() {
+  const tmdb = document.getElementById('tmdbKey').value.trim();
+  const fanart = document.getElementById('fanartKey').value.trim();
+  const fanartClient = document.getElementById('fanartClientKey').value.trim();
+  if (tmdb) localStorage.setItem('mab_tmdb', tmdb);
+  else localStorage.removeItem('mab_tmdb');
+  if (fanart) localStorage.setItem('mab_fanart', fanart);
+  else localStorage.removeItem('mab_fanart');
+  if (fanartClient) localStorage.setItem('mab_fanart_client', fanartClient);
+  else localStorage.removeItem('mab_fanart_client');
+  const workerUrl = document.getElementById('workerUrl').value.trim().replace(/\/$/, '');
+  if (workerUrl) localStorage.setItem('mab_worker_url', workerUrl);
+  else localStorage.removeItem('mab_worker_url');
+  closeSettings();
+  updateApiStatusHeader();
+  showToast('API keys saved');
+}
+
+// ══════════════════════════════════════════════
+//  ACCENT COLOUR
+// ══════════════════════════════════════════════
+const ACCENT_COLORS = {
+  '#fb923c': { dim: 0.10, glow: 0.18 }, // Amber
+  '#f59e0b': { dim: 0.10, glow: 0.18 }, // Gold
+  '#f43f5e': { dim: 0.10, glow: 0.18 }, // Rose
+  '#e63d64': { dim: 0.10, glow: 0.18 }, // Magenta
+  '#60a5fa': { dim: 0.10, glow: 0.18 }, // Sky Blue
+  '#38bdf8': { dim: 0.10, glow: 0.18 }, // Ice Blue
+  '#818cf8': { dim: 0.10, glow: 0.18 }, // Indigo
+  '#5550f7': { dim: 0.10, glow: 0.18 }, // Violet
+  '#06b6d4': { dim: 0.10, glow: 0.18 }, // Cyan (default)
+  '#19be81': { dim: 0.10, glow: 0.18 }, // Emerald
+  '#e2e8f0': { dim: 0.08, glow: 0.14 }, // Pure White
+  '#94a3b8': { dim: 0.08, glow: 0.14 }, // Slate
+};
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return `${r},${g},${b}`;
+}
+
+function applyAccent(hex) {
+  if (!hex || !ACCENT_COLORS[hex]) hex = '#06b6d4'; // fallback to default
+  const { dim, glow } = ACCENT_COLORS[hex];
+  const rgb = hexToRgb(hex);
+  const root = document.documentElement;
+  root.style.setProperty('--accent', hex);
+  root.style.setProperty('--accent-dim', `rgba(${rgb},${dim})`);
+  root.style.setProperty('--accent-glow', `rgba(${rgb},${glow})`);
+}
+
+function selectAccent(el) {
+  const hex = el.dataset.accent;
+  // Update swatch selection visuals
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  // Apply immediately so user sees live preview
+  applyAccent(hex);
+  // Persist
+  localStorage.setItem('mab_accent', hex);
+}
+
+function initSwatches() {
+  // Set background color on each swatch circle
+  document.querySelectorAll('.swatch').forEach(s => {
+    s.style.background = s.dataset.accent;
+  });
+  // Mark currently selected
+  const saved = localStorage.getItem('mab_accent') || '#06b6d4';
+  const match = document.querySelector(`.swatch[data-accent="${saved}"]`);
+  if (match) match.classList.add('selected');
+}
+
+// ══════════════════════════════════════════════
+//  SEARCH
+// ══════════════════════════════════════════════
+function setType(t) {
+  state.type = t;
+  document.getElementById('typeMovie').classList.toggle('active', t === 'movie');
+  document.getElementById('typeTV').classList.toggle('active', t === 'tv');
+  document.getElementById('typeCollection').classList.toggle('active', t === 'collection');
+}
+
+async function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  const { tmdb } = getKeys();
+  if (!tmdb) { openSettings(); showToast('Add your TMDB API key first'); return; }
+
+  showSearchLoading();
+
+  try {
+    let endpoint, results;
+
+    if (state.type === 'collection') {
+      const url = `https://api.themoviedb.org/3/search/collection?query=${encodeURIComponent(query)}&api_key=${tmdb}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.results || data.results.length === 0) { renderSearchResults([]); return; }
+      results = data.results.slice(0, 8).map(r => ({
+        id: r.id,
+        title: r.name,
+        year: '',   // collections have no single release year
+        posterPath: r.poster_path,
+        overview: r.overview,
+        type: 'collection'
+      }));
+    } else {
+      endpoint = state.type === 'movie' ? 'movie' : 'tv';
+      const url = `https://api.themoviedb.org/3/search/${endpoint}?query=${encodeURIComponent(query)}&api_key=${tmdb}&include_adult=false`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.results || data.results.length === 0) { renderSearchResults([]); return; }
+      results = data.results.slice(0, 8).map(r => ({
+        id: r.id,
+        title: r.title || r.name,
+        year: (r.release_date || r.first_air_date || '').slice(0, 4),
+        posterPath: r.poster_path,
+        overview: r.overview,
+        type: state.type
+      }));
+    }
+
+    renderSearchResults(results);
+  } catch (e) {
+    showToast('Search failed — check TMDB key');
+    hideSearchResults();
+  }
+}
+
+function showSearchLoading() {
+  const el = document.getElementById('searchResults');
+  el.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:11px;">Searching...</div>`;
+  el.classList.add('visible');
+}
+
+function renderSearchResults(results) {
+  const el = document.getElementById('searchResults');
+  if (results.length === 0) {
+    el.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:11px;">No results found</div>`;
+    el.classList.add('visible');
+    return;
+  }
+
+  el.innerHTML = results.map(r => {
+    const thumb = r.posterPath
+      ? `<img class="result-thumb" src="https://image.tmdb.org/t/p/w92${r.posterPath}" loading="lazy" onerror="this.style.display='none'">`
+      : `<div class="result-thumb-placeholder">🎬</div>`;
+    return `
+      <div class="result-item" onclick="selectTitle(${JSON.stringify(r).replace(/"/g, '&quot;')})">
+        ${thumb}
+        <div class="result-info">
+          <div class="result-title">${escHtml(r.title)}</div>
+          <div class="result-meta">${r.type === 'collection' ? 'Collection' : (r.year || '—') + ' · ' + (r.type === 'movie' ? 'Movie' : 'TV Series')}</div>
+        </div>
+        <div class="result-id">TMDB #${r.id}</div>
+      </div>`;
+  }).join('');
+  el.classList.add('visible');
+}
+
+function hideSearchResults() {
+  document.getElementById('searchResults').classList.remove('visible');
+}
+
+// ══════════════════════════════════════════════
+//  SELECT TITLE → FETCH ASSETS
+// ══════════════════════════════════════════════
+async function selectTitle(result) {
+  hideSearchResults();
+  state.selected = result;
+
+  // Update title bar
+  document.getElementById('titleBarName').textContent = result.title;
+  document.getElementById('titleBarMeta').innerHTML =
+    `<span class="meta-pill">${result.year || '—'}</span><span class="meta-pill">${result.type === 'movie' ? 'Movie' : result.type === 'tv' ? 'TV' : 'Collection'}</span><span class="meta-pill">TMDB #${result.id}</span>`;
+  const posterEl = document.getElementById('titleBarPoster');
+  if (result.posterPath) {
+    posterEl.src = `https://image.tmdb.org/t/p/w92${result.posterPath}`;
+    posterEl.style.display = '';
+  } else {
+    posterEl.style.display = 'none';
+  }
+  document.getElementById('titleBar').classList.add('visible');
+
+  showState('loading');
+  document.getElementById('stateLoadingSub').textContent = 'Querying TMDB and Fanart.tv…';
+  hidePanels();
+
+  const { tmdb, fanart, fanartClient } = getKeys();
+
+  // For TV: Fanart needs TheTVDB ID (fetched via TMDB external_ids), so it can't be
+  // fully parallel with the TMDB image fetch. We run them together anyway since the
+  // TVDB lookup is a fast extra call inside fetchFanartImages.
+  const [tmdbImages, fanartData] = await Promise.all([
+    fetchTMDBImages(result.id, result.type, tmdb),
+    fetchFanartImages(result.id, result.type, fanart, tmdb, fanartClient)
+  ]);
+
+  const assets = mergeAssets(tmdbImages, fanartData, result.type);
+  state.rawAssets = assets;
+
+  // Update tab counts
+  document.getElementById('countPosters').textContent = assets.posters.length;
+  document.getElementById('countBackdrops').textContent = assets.backdrops.length;
+  document.getElementById('countLogos').textContent = assets.logos.length;
+  const total = assets.posters.length + assets.backdrops.length + assets.logos.length;
+  if (total === 0) {
+    showState('empty');
+    return;
+  }
+
+  showState('none');
+  document.getElementById('gridArea').style.display = 'block';
+  document.getElementById('tabNav').classList.add('visible');
+  document.getElementById('filterRow').classList.add('visible');
+
+  // Reset to posters tab
+  state.activeTab = 'posters';
+  applyFilters();
+  switchTab('posters');
+}
+
+function clearSelection() {
+  state.selected = null;
+  state.rawAssets = { posters: [], backdrops: [], logos: [] };
+  state.filtered = { posters: [], backdrops: [], logos: [] };
+  document.getElementById('titleBar').classList.remove('visible');
+  document.getElementById('filterRow').classList.remove('visible');
+  document.getElementById('tabNav').classList.remove('visible');
+  document.getElementById('gridArea').style.display = 'none';
+  showState('idle');
+}
+
+// ══════════════════════════════════════════════
+//  API FETCHERS
+// ══════════════════════════════════════════════
+async function fetchTMDBImages(id, type, key) {
+  if (!key) return { posters: [], backdrops: [], logos: [] };
+  try {
+    // Collections use a different endpoint and only return posters + backdrops (no logos)
+    const endpoint = type === 'collection'
+      ? `collection/${id}`
+      : type === 'movie' ? `movie/${id}` : `tv/${id}`;
+    // Collections: no language filter — include all artwork
+    // Movies/TV: filter to English + textless (null) only
+    const langParam = type === 'collection' ? '' : '&include_image_language=en,null';
+    const url = `https://api.themoviedb.org/3/${endpoint}/images?api_key=${key}${langParam}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return {
+      posters: data.posters || [],
+      backdrops: data.backdrops || [],
+      logos: data.logos || []   // will be empty for collections — that's expected
+    };
+  } catch { return { posters: [], backdrops: [], logos: [] }; }
+}
+
+// ── Fanart.tv CORS proxy chain ────────────────────────────────────────────────
+// Worker URL is stored in localStorage (Settings → Cloudflare Worker URL).
+// Not hardcoded here so it's not exposed in the HTML source.
+function getWorkerUrl() {
+  return (localStorage.getItem('mab_worker_url') || '').replace(/\/$/, '');
+}
+
+async function fanartFetch(url) {
+  const workerBase = getWorkerUrl();
+
+  // Only attempt Worker if URL is configured in Settings
+  if (workerBase) {
+    try {
+      const r = await fetch(`${workerBase}/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error(`cf-worker ${r.status}`);
+      console.log('[Fanart] Worker succeeded');
+      return r.json();
+    } catch (e) {
+      console.warn('[Fanart] Worker failed:', e.message);
+    }
+  } else {
+    showToast('Add your Cloudflare Worker URL in Settings for Fanart images');
+    throw new Error('No Worker URL — add it in Settings.');
+  }
+
+  // Worker failed — throw so caller can handle gracefully
+  throw new Error('Fanart Worker failed — check your Worker URL in Settings.');
+}
+
+async function fetchFanartImages(id, type, key, tmdbKey, clientKey) {
+  if (!key) return null;
+  try {
+    let fanartId = id;
+
+    if (type === 'tv') {
+      // Fanart.tv TV endpoint requires TheTVDB ID, not TMDB ID.
+      const extUrl = `https://api.themoviedb.org/3/tv/${id}/external_ids?api_key=${tmdbKey}`;
+      const extRes = await fetch(extUrl);
+      if (!extRes.ok) {
+        console.warn('[Fanart] TMDB external_ids lookup failed:', extRes.status);
+        return null;
+      }
+      const extData = await extRes.json();
+      fanartId = extData.tvdb_id;
+      if (!fanartId) {
+        console.warn('[Fanart] No TVDB ID found for TMDB TV id', id);
+        return null;
+      }
+      console.log(`[Fanart] TV: TMDB #${id} → TVDB #${fanartId}`);
+    }
+
+    // Movies:     /v3.2/movies/{tmdb_id}  — TMDB ID accepted directly
+    // TV:         /v3.2/tv/{tvdb_id}      — must be TheTVDB ID
+    // Collection: /v3.2/movies/{tmdb_collection_id} — Fanart uses same ID as TMDB for collections
+    const endpoint = type === 'tv' ? 'tv' : 'movies';
+    const clientParam = clientKey ? `&client_key=${clientKey}` : '';
+    const fanartUrl = `https://webservice.fanart.tv/v3.2/${endpoint}/${fanartId}?api_key=${key}${clientParam}`;
+    console.log('[Fanart] Fetching via proxy:', fanartUrl);
+
+    const data = await fanartFetch(fanartUrl);
+    console.log('[Fanart] Response keys:', Object.keys(data));
+    return data;
+  } catch (err) {
+    console.warn('[Fanart] failed:', err.message);
+    return null;
+  }
+}
+
+// ══════════════════════════════════════════════
+//  MERGE ASSETS
+// ══════════════════════════════════════════════
+function mergeAssets(tmdb, fanartRaw, type) {
+  const posters   = [];
+  const backdrops = [];
+  const logos     = [];
+  // TMDB posters
+  (tmdb.posters || []).forEach(p => {
+    posters.push({
+      source: 'tmdb',
+      url: `https://image.tmdb.org/t/p/original${p.file_path}`,
+      thumb: `https://image.tmdb.org/t/p/w342${p.file_path}`,
+      width: p.width,
+      height: p.height,
+      votes: p.vote_count || 0,
+      lang: p.iso_639_1 || 'null',
+      filename: null
+    });
+  });
+
+  // TMDB backdrops
+  (tmdb.backdrops || []).forEach(b => {
+    backdrops.push({
+      source: 'tmdb',
+      url: `https://image.tmdb.org/t/p/original${b.file_path}`,
+      thumb: `https://image.tmdb.org/t/p/w780${b.file_path}`,
+      width: b.width,
+      height: b.height,
+      votes: b.vote_count || 0,
+      lang: b.iso_639_1 || 'null',
+      filename: null
+    });
+  });
+
+  // TMDB logos
+  (tmdb.logos || []).forEach(l => {
+    logos.push({
+      source: 'tmdb',
+      url: `https://image.tmdb.org/t/p/original${l.file_path}`,
+      thumb: `https://image.tmdb.org/t/p/w500${l.file_path}`,
+      width: l.width,
+      height: l.height,
+      votes: l.vote_count || 0,
+      lang: l.iso_639_1 || 'null',
+      filename: null
+    });
+  });
+
+  // Fanart.tv
+  if (fanartRaw) {
+    if (type === 'movie' || type === 'collection') {
+      // Collections use the same Fanart /movies/ endpoint and same image key names
+      parseFanartType(fanartRaw, 'movieposter',     posters,   'fanart', 'poster');
+      parseFanartType(fanartRaw, 'moviebackground', backdrops, 'fanart', 'backdrop');
+      parseFanartType(fanartRaw, 'hdmovielogo',     logos,     'fanart', 'logo');
+      parseFanartType(fanartRaw, 'movielogo',       logos,     'fanart', 'logo');
+      parseFanartType(fanartRaw, 'moviethumb',      backdrops, 'fanart', 'thumb');
+
+    } else {
+      parseFanartType(fanartRaw, 'tvposter',        posters,   'fanart', 'poster');
+      parseFanartType(fanartRaw, 'showbackground',  backdrops, 'fanart', 'backdrop');
+      parseFanartType(fanartRaw, 'hdtvlogo',        logos,     'fanart', 'logo');
+      parseFanartType(fanartRaw, 'clearlogo',       logos,     'fanart', 'logo');
+      parseFanartType(fanartRaw, 'tvthumb',         backdrops, 'fanart', 'thumb');
+
+    }
+  }
+
+  return { posters, backdrops, logos };
+}
+
+function parseFanartType(data, key, arr, source, kind) {
+  const items = data[key];
+  if (!Array.isArray(items)) return;
+  items.forEach(item => {
+    // v3.2 returns width/height as strings; "00" = textless (no language overlay)
+    const w = parseInt(item.width) || null;
+    const h = parseInt(item.height) || null;
+    // Normalise lang: fanart uses "00" for textless, we store as "null" internally
+    const lang = (!item.lang || item.lang === '00') ? 'null' : item.lang;
+    arr.push({
+      source: 'fanart',
+      url: item.url,
+      thumb: item.url,
+      width: w,
+      height: h,
+      votes: parseInt(item.likes) || 0,
+      lang: lang,
+      filename: null,
+      fanartType: key
+    });
+  });
+}
+
+// ══════════════════════════════════════════════
+//  FILTERS + RENDERING
+// ══════════════════════════════════════════════
+function applyFilters() {
+  const source = document.getElementById('filterSource').value;
+  const lang = document.getElementById('filterLang').value;
+  const sort = document.getElementById('filterSort').value;
+
+  function filterArr(arr) {
+    return arr
+      .filter(a => source === 'all' || a.source === source)
+      .filter(a => {
+        if (lang === 'all') return true;
+        if (lang === 'null') return a.lang === 'null' || a.lang === '' || !a.lang;
+        return a.lang === lang;
+      })
+      .sort((a, b) => sort === 'votes' ? b.votes - a.votes : (b.width || 0) - (a.width || 0));
+  }
+
+  state.filtered = {
+    posters:  filterArr(state.rawAssets.posters),
+    backdrops: filterArr(state.rawAssets.backdrops),
+    logos:    filterArr(state.rawAssets.logos),
+  };
+
+  renderActiveTab();
+}
+
+function switchTab(tab) {
+  state.activeTab = tab;
+  ['posters', 'backdrops', 'logos'].forEach(t => {
+    document.getElementById(`tab${cap(t)}`).classList.toggle('active', t === tab);
+    document.getElementById(`grid${cap(t)}`).style.display = t === tab ? '' : 'none';
+  });
+  renderActiveTab();
+}
+
+function renderActiveTab() {
+  const tab = state.activeTab;
+  const items = state.filtered[tab];
+  const grid = document.getElementById(`grid${cap(tab)}`);
+  const emptyTab = document.getElementById('emptyTab');
+
+  if (!items || items.length === 0) {
+    grid.innerHTML = '';
+    emptyTab.classList.add('visible');
+    return;
+  }
+
+  emptyTab.classList.remove('visible');
+
+  const ratioClass = tab === 'posters' ? 'poster-ratio' : tab === 'backdrops' ? 'backdrop-ratio' : 'logo-ratio';
+  const title = state.selected?.title || '';
+  const year = state.selected?.year || '';
+
+  grid.innerHTML = items.map((asset, i) => {
+    const res = asset.width ? `${asset.width}×${asset.height}` : '';
+    const votes = asset.votes ? `♡ ${asset.votes}` : '';
+    const sourceCls = asset.source === 'tmdb' ? 'tmdb' : 'fanart';
+    const sourceLabel = asset.source === 'tmdb' ? 'TMDB' : 'Fanart';
+    const fname = makeFilename(title, year, tab, asset.source, i + 1, asset.url);
+
+    return `
+      <div class="asset-card" data-index="${i}" data-tab="${tab}" onclick="handleCardTap(${i},'${tab}',event)">
+        <div class="asset-img-wrap ${ratioClass}">
+          <div class="img-skeleton" id="sk-${tab}-${i}"></div>
+          <img
+            class="asset-img loading"
+            src="${asset.source === 'fanart' && getWorkerUrl() ? getWorkerUrl()+'/proxy?url='+encodeURIComponent(asset.thumb) : asset.thumb}"
+            loading="lazy"
+            onload="onImgLoad(this,'sk-${tab}-${i}')"
+            onerror="onImgError(this,'sk-${tab}-${i}')"
+            alt=""
+          >
+          <span class="source-tag ${sourceCls}">${sourceLabel}</span>
+          <div class="asset-overlay">
+            <button class="overlay-btn" onclick="openLightbox(${i},'${tab}')">Preview</button>
+            <button class="overlay-btn dl" onclick="downloadAsset(${i},'${tab}',event)">Download</button>
+          </div>
+        </div>
+        <div class="asset-footer">
+          <span class="asset-res">${res}</span>
+          <span class="asset-votes">${votes}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+//  CARD TAP (mobile: whole card = preview)
+// ══════════════════════════════════════════════
+function handleCardTap(index, tab, event) {
+  // Only act if the tap didn't land on an overlay button (they handle themselves)
+  if (event.target.closest('.overlay-btn')) return;
+  // On mobile the overlay is hidden — card tap = preview
+  // On desktop also opens lightbox when clicking the image area directly
+  openLightbox(index, tab);
+}
+
+// ══════════════════════════════════════════════
+//  LIGHTBOX
+// ══════════════════════════════════════════════
+function openLightbox(index, tab) {
+  const asset = state.filtered[tab][index];
+  if (!asset) return;
+  state.lightboxAsset = asset;
+  state.lightboxTab = tab;
+  state.lightboxIndex = index;
+
+  const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lightboxImg');
+  img.src = asset.url;
+  document.getElementById('lightboxInfo').textContent =
+    `${asset.source.toUpperCase()} · ${asset.lang || '—'} · ${asset.width ? asset.width + '×' + asset.height : 'resolving...'}`;
+  lb.classList.add('visible');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('visible');
+  document.body.style.overflow = '';
+  state.lightboxAsset = null;
+}
+
+function downloadFromLightbox() {
+  if (!state.lightboxAsset) return;
+  downloadAsset(state.lightboxIndex, state.lightboxTab, null);
+}
+
+// ══════════════════════════════════════════════
+//  DOWNLOAD
+// ══════════════════════════════════════════════
+async function downloadAsset(index, tab, event) {
+  if (event) event.stopPropagation();
+  const asset = state.filtered[tab][index];
+  if (!asset) return;
+
+  const title = state.selected?.title || 'asset';
+  const year = state.selected?.year || '';
+  const fname = makeFilename(title, year, tab, asset.source, index + 1, asset.url);
+
+  showToast(`Downloading ${fname}…`);
+
+  const workerBase = getWorkerUrl();
+  if (!workerBase) {
+    window.open(asset.url, '_blank');
+    showToast('No Worker URL set — opened in new tab');
+    return;
+  }
+
+  // All downloads through Cloudflare worker — consistent, cached at edge.
+  // Worker /proxy allows: fanart.tv + image.tmdb.org
+  const fetchUrl = `${workerBase}/proxy?url=${encodeURIComponent(asset.url)}`;
+
+  try {
+    const res = await fetch(fetchUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const burl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = burl;
+    a.download = fname;
+    a.click();
+    URL.revokeObjectURL(burl);
+    showToast(`Saved: ${fname}`);
+  } catch (err) {
+    console.warn('[Download] failed:', err.message, '— opening in new tab');
+    window.open(asset.url, '_blank');
+    showToast('Opened in new tab — right-click to save');
+  }
+}
+
+function makeFilename(title, year, tab, source, index, url) {
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const yr = year ? `-${year}` : '';
+  const tabSlug = tab === 'posters' ? 'poster' : tab === 'backdrops' ? 'backdrop' : 'logo';
+  const n = String(index).padStart(2, '0');
+  const ext = url.split('?')[0].split('.').pop().toLowerCase() || 'jpg';
+  return `${slug}${yr}-${tabSlug}-${source}-${n}.${ext}`;
+}
+
+// ══════════════════════════════════════════════
+//  UI HELPERS
+// ══════════════════════════════════════════════
+function showState(name) {
+  ['idle', 'loading', 'empty'].forEach(s => {
+    document.getElementById(`state${cap(s)}`).classList.toggle('visible', s === name);
+  });
+}
+
+function hidePanels() {
+  document.getElementById('tabNav').classList.remove('visible');
+  document.getElementById('filterRow').classList.remove('visible');
+  document.getElementById('gridArea').style.display = 'none';
+}
+
+function onImgLoad(img, skId) {
+  img.classList.remove('loading');
+  img.classList.add('loaded');
+  const sk = document.getElementById(skId);
+  if (sk) sk.style.display = 'none';
+}
+
+function onImgError(img, skId) {
+  img.style.display = 'none';
+  const sk = document.getElementById(skId);
+  if (sk) sk.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:10px;">Failed</div>';
+}
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ══════════════════════════════════════════════
+//  KEYBOARD
+// ══════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('lightbox').classList.contains('visible')) closeLightbox();
+    else if (document.getElementById('settingsModal').classList.contains('visible')) closeSettings();
+    else hideSearchResults();
+  }
+  if (e.key === 'Enter' && document.activeElement === document.getElementById('searchInput')) {
+    doSearch();
+  }
+});
+
+// close search results when clicking outside
+document.addEventListener('click', e => {
+  const sr = document.getElementById('searchResults');
+  if (!sr.contains(e.target) && e.target !== document.getElementById('searchInput')) {
+    hideSearchResults();
+  }
+});
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+updateApiStatusHeader();
+
+// Apply saved accent colour immediately on load
+applyAccent(localStorage.getItem('mab_accent') || '#06b6d4');
+
+// Swatches need DOM — run after a tick
+setTimeout(initSwatches, 0);
+
+// Auto-open settings if no keys set
+const keys = getKeys();
+if (!keys.tmdb && !keys.fanart) {
+  setTimeout(openSettings, 400);
+}
+</script>
+</body>
+</html>
