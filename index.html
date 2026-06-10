@@ -1564,6 +1564,10 @@ function renderActiveTab() {
   const title = state.selected?.title || '';
   const year = state.selected?.year || '';
 
+  // Reset queue on every render — clear pending imgs from previous search/tab
+  imgQueue = [];
+  imgActiveCount = 0;
+
   grid.innerHTML = items.map((asset, i) => {
     const res = asset.width ? `${asset.width}×${asset.height}` : '';
     const votes = asset.votes ? `♡ ${asset.votes}` : '';
@@ -1579,7 +1583,7 @@ function renderActiveTab() {
           <div class="img-skeleton" id="sk-${tab}-${i}"></div>
           <img
             class="asset-img loading"
-            src="${asset.source === 'fanart' && getWorkerUrl() ? getWorkerUrl()+'/proxy?url='+encodeURIComponent(asset.thumb) : asset.thumb}"
+            data-src="${asset.source === 'fanart' && getWorkerUrl() ? getWorkerUrl()+'/proxy?url='+encodeURIComponent(asset.thumb) : asset.thumb}"
             loading="lazy"
             onload="onImgLoad(this,'sk-${tab}-${i}')"
             onerror="onImgError(this,'sk-${tab}-${i}')"
@@ -1598,6 +1602,9 @@ function renderActiveTab() {
         </div>
       </div>`;
   }).join('');
+
+  // Feed all data-src images through concurrency queue
+  enqueueGridImages(grid);
 }
 
 // ══════════════════════════════════════════════
@@ -1714,17 +1721,76 @@ function hidePanels() {
   document.getElementById('gridArea').style.display = 'none';
 }
 
+// ══════════════════════════════════════════════
+//  IMAGE CONCURRENCY QUEUE
+//  Max 6 simultaneous loads — matches CF Worker connection limit.
+//  Prevents failures when 20-50 fanart images fire at once.
+// ══════════════════════════════════════════════
+const IMG_CONCURRENCY = 6;
+let imgActiveCount = 0;
+let imgQueue = [];
+
+function queueImg(img) {
+  imgQueue.push(img);
+  drainImgQueue();
+}
+
+function drainImgQueue() {
+  while (imgActiveCount < IMG_CONCURRENCY && imgQueue.length > 0) {
+    const img = imgQueue.shift();
+    if (!img.dataset.src) continue; // already loaded
+    imgActiveCount++;
+    img.src = img.dataset.src;
+    delete img.dataset.src;
+  }
+}
+
+function imgDone() {
+  imgActiveCount = Math.max(0, imgActiveCount - 1);
+  drainImgQueue();
+}
+
+function enqueueGridImages(container) {
+  container.querySelectorAll('img[data-src]').forEach(img => queueImg(img));
+}
+
 function onImgLoad(img, skId) {
   img.classList.remove('loading');
   img.classList.add('loaded');
   const sk = document.getElementById(skId);
   if (sk) sk.style.display = 'none';
+  imgDone();
 }
 
 function onImgError(img, skId) {
+  // Attempt 1: retry after 2s (transient CF Worker hiccup)
+  if (!img.dataset.retried) {
+    img.dataset.retried = '1';
+    setTimeout(() => {
+      const src = img.src;
+      img.src = '';
+      img.src = src;
+    }, 2000);
+    return; // don't call imgDone — still in-flight
+  }
+
+  // Attempt 2: fallback to direct assets.fanart.tv (img tags bypass CORS)
+  if (!img.dataset.direct) {
+    img.dataset.direct = '1';
+    try {
+      const match = img.src.match(/\/proxy\?url=(.+)$/);
+      if (match) {
+        img.src = decodeURIComponent(match[1]);
+        return; // still in-flight
+      }
+    } catch(e) {}
+  }
+
+  // All attempts failed
   img.style.display = 'none';
   const sk = document.getElementById(skId);
   if (sk) sk.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:10px;">Failed</div>';
+  imgDone();
 }
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
