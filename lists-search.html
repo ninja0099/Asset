@@ -1008,7 +1008,7 @@
 </div>
 
 <script>
-// ─── ACCENT COLOUR (shared with AssetBrowser via mab_accent) ─────
+// ─── ACCENT COLOUR (independent from AssetBrowser) ─────
 const ACCENT_COLORS = {
   '#fb923c': { dim: 0.10, glow: 0.18 },
   '#f59e0b': { dim: 0.10, glow: 0.18 },
@@ -1046,7 +1046,7 @@ function selectAccent(el) {
   document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
   el.classList.add('selected');
   applyAccent(hex);
-  localStorage.setItem('mab_accent', hex);
+  localStorage.setItem('lists_accent', hex);
 }
 
 function initSwatches() {
@@ -1054,13 +1054,13 @@ function initSwatches() {
     s.style.background = s.dataset.accent;
     s.classList.remove('selected');
   });
-  const saved = localStorage.getItem('mab_accent') || '#06b6d4';
+  const saved = localStorage.getItem('lists_accent') || '#06b6d4';
   const match = document.querySelector(`.swatch[data-accent="${saved}"]`);
   if (match) match.classList.add('selected');
 }
 
 // Apply saved accent immediately on load
-applyAccent(localStorage.getItem('mab_accent') || '#06b6d4');
+applyAccent(localStorage.getItem('lists_accent') || '#06b6d4');
 
 // ─── PROXY ─────────────────────────────────────────────────────────
 // CORS proxy worker — used for MDBList API requests (api.mdblist.com
