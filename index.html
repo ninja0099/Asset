@@ -1585,7 +1585,6 @@ function renderActiveTab() {
           <img
             class="asset-img loading"
             data-src="${asset.source === 'fanart' && getWorkerUrl() ? getWorkerUrl()+'/proxy?url='+encodeURIComponent(asset.thumb) : asset.thumb}"
-            loading="lazy"
             onload="onImgLoad(this,'sk-${tab}-${i}')"
             onerror="onImgError(this,'sk-${tab}-${i}')"
             alt=""
@@ -1631,7 +1630,12 @@ function openLightbox(index, tab) {
 
   const lb = document.getElementById('lightbox');
   const img = document.getElementById('lightboxImg');
-  img.src = asset.url;
+  // Route fanart through Worker (CORS) — same as grid. Since the grid already
+  // loaded the thumbnail (same URL for fanart), this hits browser cache instantly.
+  const workerBase = getWorkerUrl();
+  img.src = (asset.source === 'fanart' && workerBase)
+    ? workerBase + '/proxy?url=' + encodeURIComponent(asset.url)
+    : asset.url;
   document.getElementById('lightboxInfo').textContent =
     `${asset.source.toUpperCase()} · ${asset.lang || '—'} · ${asset.width ? asset.width + '×' + asset.height : 'resolving...'}`;
   lb.classList.add('visible');
@@ -1724,10 +1728,12 @@ function hidePanels() {
 
 // ══════════════════════════════════════════════
 //  IMAGE CONCURRENCY QUEUE
-//  Max 6 simultaneous loads — matches CF Worker connection limit.
-//  Prevents failures when 20-50 fanart images fire at once.
+//  Fanart images route through the CF Worker (CORS required).
+//  Worker now uses Cache API so hits return instantly from edge.
+//  Raised to 20: CF Workers handle many parallel connections fine;
+//  6 caused visible slow-batch loading with 50+ fanart images.
 // ══════════════════════════════════════════════
-const IMG_CONCURRENCY = 6;
+const IMG_CONCURRENCY = 20;
 let imgActiveCount = 0;
 let imgQueue = [];
 
@@ -1764,30 +1770,32 @@ function onImgLoad(img, skId) {
 }
 
 function onImgError(img, skId) {
-  // Attempt 1: retry after 2s (transient CF Worker hiccup)
+  // Attempt 1: single retry after 1.5s with cache-bust
+  // (strips _r= first so we don't stack params on repeated errors)
   if (!img.dataset.retried) {
     img.dataset.retried = '1';
     setTimeout(() => {
-      const src = img.src;
-      img.src = '';
-      img.src = src;
-    }, 2000);
-    return; // don't call imgDone — still in-flight
-  }
-
-  // Attempt 2: fallback to direct assets.fanart.tv (img tags bypass CORS)
-  if (!img.dataset.direct) {
-    img.dataset.direct = '1';
-    try {
-      const match = img.src.match(/\/proxy\?url=(.+)$/);
-      if (match) {
-        img.src = decodeURIComponent(match[1]);
-        return; // still in-flight
+      // If this is a Worker proxy URL (/proxy?url=...), we must append _r= to
+      // the inner target URL (so the Worker fetches fresh from upstream), not to
+      // the Worker URL itself (which the Worker would ignore).
+      let retryUrl;
+      const proxyMatch = img.src.match(/^(.*\/proxy\?url=)(.+)$/);
+      if (proxyMatch) {
+        const innerUrl = decodeURIComponent(proxyMatch[2]).replace(/[?&]_r=\d+/, '');
+        const busted = innerUrl + (innerUrl.includes('?') ? '&' : '?') + '_r=' + Date.now();
+        retryUrl = proxyMatch[1] + encodeURIComponent(busted);
+      } else {
+        // Direct URL (TMDB) — append _r= normally
+        const base = img.src.replace(/[?&]_r=\d+/, '');
+        retryUrl = base + (base.includes('?') ? '&' : '?') + '_r=' + Date.now();
       }
-    } catch(e) {}
+      img.src = '';
+      img.src = retryUrl;
+    }, 1500);
+    return; // still in-flight — don't call imgDone
   }
 
-  // All attempts failed
+  // All attempts failed — show placeholder
   img.style.display = 'none';
   const sk = document.getElementById(skId);
   if (sk) sk.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:10px;">Failed</div>';
