@@ -1757,8 +1757,34 @@ function imgDone() {
   drainImgQueue();
 }
 
+// ── IntersectionObserver — only queue images near/in the viewport ────────────
+// rootMargin "400px 0px": start loading 400px before the image scrolls into
+// view so the user never sees a blank card while scrolling.
+// Each render (tab switch / new title) disconnects the old observer first.
+let imgObserver = null;
+
 function enqueueGridImages(container) {
-  container.querySelectorAll('img[data-src]').forEach(img => queueImg(img));
+  // Disconnect previous observer so stale images from the last render
+  // don't accidentally get queued into the new render's concurrency slots.
+  if (imgObserver) {
+    imgObserver.disconnect();
+    imgObserver = null;
+  }
+
+  imgObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const img = entry.target;
+      obs.unobserve(img); // stop watching once queued — no repeated callbacks
+      queueImg(img);      // hand off to existing concurrency queue
+    });
+  }, {
+    root: null,           // viewport
+    rootMargin: '400px 0px', // preload 400px before image enters view
+    threshold: 0,
+  });
+
+  container.querySelectorAll('img[data-src]').forEach(img => imgObserver.observe(img));
 }
 
 function onImgLoad(img, skId) {
